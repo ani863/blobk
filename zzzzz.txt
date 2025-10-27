@@ -1,0 +1,363 @@
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import axios from 'axios';
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+interface UserState {
+  data: User[];
+  loading: boolean;
+  error: string | null;
+}
+
+const initialState: UserState = {
+  data: [],
+  loading: false,
+  error: null,
+};
+
+export const fetchUsers = createAsyncThunk('placeholderUsers/fetch', async () => {
+  const response = await axios.get('https://jsonplaceholder.typicode.com/users');
+  return response.data;
+});
+
+const userSlice = createSlice({
+  name: 'placeholderUsers',
+  initialState,
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        state.data = action.payload;
+      })
+      .addCase(fetchUsers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch users';
+      });
+  },
+});
+
+export default userSlice.reducer;
+
+
+import { configureStore } from "@reduxjs/toolkit";
+import placeholderUserReducer from "../redux/slices/userSlice";
+import dummyUserReducer from "../redux/slices/dummyUserSlice";
+
+export const store = configureStore({
+  reducer: {
+    placeholderUsers: placeholderUserReducer,
+    dummyUsers: dummyUserReducer,
+  },
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+
+import ReactDOM from 'react-dom/client';
+import { Provider } from 'react-redux';
+import { store } from './redux/store';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+root.render(
+  <Provider store={store}>
+    <App />
+  </Provider>
+);
+
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import type { PayloadAction } from "@reduxjs/toolkit";
+import axios from "axios";
+
+export interface DummyUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+interface DummyUserState {
+  data: DummyUser[];
+  loading: boolean;
+  error: string | null;
+  search: string;
+}
+
+const initialState: DummyUserState = {
+  data: [],
+  loading: false,
+  error: null,
+  search: "",
+};
+
+export const fetchDummyUsers = createAsyncThunk(
+  "dummyUsers/fetch",
+  async () => {
+    const res = await axios.get("https://dummyjson.com/users");
+    return res.data.users;
+  }
+);
+
+const dummyUserSlice = createSlice({
+  name: "dummyUsers",
+  initialState,
+  reducers: {
+    setSearch: (state, action: PayloadAction<string>) => {
+      state.search = action.payload;
+    },
+    reorderUsers: (state, action: PayloadAction<DummyUser[]>) => {
+      state.data = action.payload;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchDummyUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchDummyUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        state.data = action.payload;
+      })
+      .addCase(fetchDummyUsers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to fetch dummy users";
+      });
+  },
+});
+
+export const { setSearch, reorderUsers } = dummyUserSlice.actions;
+export default dummyUserSlice.reducer;
+
+
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import type { RootState, AppDispatch } from './redux/store';
+import { fetchUsers } from './redux/slices/userSlice';
+import DownloadCSVButton from './DownloadButton';
+
+const UserTable: React.FC = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const { data: users, loading, error } = useSelector(
+    (state: RootState) => state.placeholderUsers
+  );
+
+  useEffect(() => {
+    dispatch(fetchUsers());
+  }, [dispatch]);
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h2>Basic Users (JSONPlaceholder)</h2>
+
+      {loading && <p>Loading...</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      {!loading && !error && users.length > 0 && (
+        <>
+          <DownloadCSVButton users={users} />
+          <table border={1} cellPadding={8} cellSpacing={0}>
+            <thead>
+              <tr style={{ backgroundColor: '#f2f2f2' }}>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.name}</td>
+                  <td>{u.email}</td>
+                  <td>{u.phone}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default UserTable;
+
+
+import React, { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState, AppDispatch } from "../redux/store";
+import {
+  fetchDummyUsers,
+  setSearch,
+  reorderUsers,
+} from "../redux/slices/dummyUserSlice";
+// import type { DummyUser } from "../redux/slices/dummyUserSlice";
+
+const DummyUserTable: React.FC = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const {
+    data: users,
+    loading,
+    error,
+    search,
+  } = useSelector((state: RootState) => state.dummyUsers);
+
+  useEffect(() => {
+    dispatch(fetchDummyUsers());
+  }, [dispatch]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setSearch(e.target.value));
+  };
+
+  const filteredUsers = users.filter((u) =>
+    `${u.firstName} ${u.lastName}`.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Simple drag & drop (manual version)
+  const onDragStart = (
+    e: React.DragEvent<HTMLTableRowElement>,
+    index: number
+  ) => {
+    e.dataTransfer.setData("rowIndex", index.toString());
+  };
+
+  const onDrop = (
+    e: React.DragEvent<HTMLTableRowElement>,
+    dropIndex: number
+  ) => {
+    const dragIndex = parseInt(e.dataTransfer.getData("rowIndex"), 10);
+    const updated = [...filteredUsers];
+    const [dragged] = updated.splice(dragIndex, 1);
+    updated.splice(dropIndex, 0, dragged);
+    dispatch(reorderUsers(updated));
+  };
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <h2>Advanced Users (DummyJSON)</h2>
+      <input
+        type="text"
+        placeholder="Search by name..."
+        value={search}
+        onChange={handleSearchChange}
+        style={{ padding: "8px", marginBottom: "10px", width: "250px" }}
+      />
+
+      {loading && <p>Loading users...</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {!loading && !error && filteredUsers.length > 0 && (
+        <table border={1} cellPadding={8} cellSpacing={0}>
+          <thead>
+            <tr style={{ backgroundColor: "#f2f2f2" }}>
+              <th>First Name</th>
+              <th>Last Name</th>
+              <th>Email</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((user, index) => (
+              <tr
+                key={user.id}
+                draggable
+                onDragStart={(e) => onDragStart(e, index)}
+                onDrop={(e) => onDrop(e, index)}
+                onDragOver={(e) => e.preventDefault()}
+              >
+                <td>{user.firstName}</td>
+                <td>{user.lastName}</td>
+                <td>{user.email}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
+export default DummyUserTable;
+
+
+import React from 'react';
+import type { User } from './redux/slices/userSlice';
+
+interface Props {
+  users: User[];
+}
+
+const DownloadCSVButton: React.FC<Props> = ({ users }) => {
+  const handleDownload = () => {
+    if (!users || users.length === 0) {
+      alert('No users to export');
+      return;
+    }
+
+    const headers = ['Name', 'Email', 'Phone'];
+    const rows = users.map((u) => [u.name, u.email, u.phone]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers, ...rows].map((e) => e.join(',')).join('\n');
+
+    const link = document.createElement('a');
+    link.href = encodeURI(csvContent);
+    link.download = 'users.csv';
+    link.click();
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      style={{
+        marginBottom: '10px',
+        padding: '8px 14px',
+        cursor: 'pointer',
+        background: '#1976d2',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '5px',
+      }}
+    >
+      Download CSV
+    </button>
+  );
+};
+
+export default DownloadCSVButton;
+
+import React, { useState } from 'react';
+import UserTable from './UsersTable';
+import DummyUserTable from './dummyUsers/DummyUserTable';
+
+const App: React.FC = () => {
+  const [view, setView] = useState<'basic' | 'advanced'>('basic');
+
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>User Management Dashboard</h1>
+      <div style={{ marginBottom: 20 }}>
+        <button onClick={() => setView('basic')}>Basic (JSONPlaceholder)</button>
+        <button onClick={() => setView('advanced')} style={{ marginLeft: 10 }}>
+          Advanced (DummyJSON)
+        </button>
+      </div>
+
+      {view === 'basic' ? <UserTable /> : <DummyUserTable />}
+    </div>
+  );
+};
+
+export default App;
